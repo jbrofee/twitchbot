@@ -10,8 +10,7 @@ declare module 'fastify' {
         config: {
             TWITCH_CLIENT_ID: string;
             TWITCH_CLIENT_SECRET: string;
-            access_token: string;
-            refresh_token: string;
+            TWITCH_USER_ID: string;
         };
     }
 }
@@ -23,7 +22,7 @@ const server = fastify();
 // Setting env schema
 const envSchema = {
     type: 'object',
-    required: [ 'TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET', 'access_token', 'refresh_token'],
+    required: [ 'TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET', 'TWITCH_USER_ID'],
     properties: {
         TWITCH_CLIENT_ID: {
             type: 'string',
@@ -31,10 +30,7 @@ const envSchema = {
         TWITCH_CLIENT_SECRET: {
             type: 'string',
         },
-        access_token: {
-            type: 'string',
-        },
-        refresh_token: {
+        TWITCH_USER_ID: {
             type: 'string',
         },
     }
@@ -58,24 +54,29 @@ const clientSecret = server.config.TWITCH_CLIENT_SECRET;
 const clientId = server.config.TWITCH_CLIENT_ID;
 
 // Grabbing data from JSON file
-const tokenData = JSON.parse(await fs.readFile('./tokens.json', 'utf-8'));
+const tokenData = JSON.parse(await fs.readFile(`./tokens.${server.config.TWITCH_USER_ID}.json`, 'utf-8'));
 const authProvider = new RefreshingAuthProvider({ clientId, clientSecret });
 
 // Updating refresh/access tokens
-authProvider.onRefresh(async (newTokenData) => await fs.writeFile(`./tokens.json`, JSON.stringify(newTokenData, null, 4), 'utf-8'));
+authProvider.onRefresh(async (userId, newTokenData) => await fs.writeFile(`./tokens.${userId}.json`, JSON.stringify(newTokenData, null, 4), 'utf-8'));
 
 // Connecting to my chat
 await authProvider.addUserForToken(tokenData, ['chat']);
 const bot = new Bot({ authProvider, channels: ['jbrofee']});
 bot.say("jbrofee", "Hello, I am a bot!");
+bot.onMessage(async (message) => {
+    console.log(`${message.userDisplayName}: ${message.text}`);
+})
 
+bot.onJoin(async (message) => {
+    console.log(`${message.userName} joined the chat`);
+})
 
 // Basic ping check for debugging
 server.get('/ping', async (request) => {
     console.log("Pinged", request.ip, request.url);
     return 'pong\n';
     })
-
 
 // Starting the server and listing on port 3000
 server.listen({ port: 3000 }, (err, address) => {
