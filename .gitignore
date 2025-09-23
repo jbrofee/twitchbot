@@ -1,4 +1,4 @@
 /backend/node_modules/
 .idea/
-/backend/.env
-/backend/tokens.json
+tokens.*.json
+*.env

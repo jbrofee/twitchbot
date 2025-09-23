@@ -3,6 +3,7 @@ import { RefreshingAuthProvider } from "@twurple/auth";
 import { Bot } from "@twurple/easy-bot";
 import { fastifyEnv } from "@fastify/env";
 import { promises as fs } from 'fs';
+import clickhouseQuery, { initializeClickHouse } from "./clickhouse.ts";
 
 // Type declaration for fastify config
 declare module 'fastify' {
@@ -11,6 +12,7 @@ declare module 'fastify' {
             TWITCH_CLIENT_ID: string;
             TWITCH_CLIENT_SECRET: string;
             TWITCH_USER_ID: string;
+            CLICKHOUSE_URI: string;
         };
     }
 }
@@ -22,7 +24,7 @@ const server = fastify();
 // Setting env schema
 const envSchema = {
     type: 'object',
-    required: [ 'TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET', 'TWITCH_USER_ID'],
+    required: [ 'TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET', 'TWITCH_USER_ID', 'CLICKHOUSE_URI'],
     properties: {
         TWITCH_CLIENT_ID: {
             type: 'string',
@@ -33,6 +35,9 @@ const envSchema = {
         TWITCH_USER_ID: {
             type: 'string',
         },
+        CLICKHOUSE_URI: {
+            type: 'string',
+        }
     }
 }
 
@@ -47,6 +52,12 @@ const options = {
 // Using await as this is weirdly slow
 await server.register(fastifyEnv, options)
 await server.after();
+
+const clickhouseUri = server.config.CLICKHOUSE_URI;
+
+// Initialize ClickHouse client once
+initializeClickHouse(clickhouseUri);
+await clickhouseQuery()
 
 // Bot set up in line with: https://twurple.js.org/docs/examples/chat/basic-bot.html
 // These are stored in env file; some aspects are in JSON file as they are regularly overwritten

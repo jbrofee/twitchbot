@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@clickhouse/client": "^1.12.1",
     "@fastify/env": "^5.0.2",
     "@twurple/api": "^7.4.0",
     "@twurple/auth": "^7.4.0",
