@@ -1,20 +1,28 @@
-import fastify from 'fastify';
+// Fastify imports
+import fastify from "fastify";
+import { fastifyEnv } from "@fastify/env";
+import { promises as fs } from "node:fs";
+
+// Twurple imports
 import { RefreshingAuthProvider } from "@twurple/auth";
 import { Bot } from "@twurple/easy-bot";
-import { fastifyEnv } from "@fastify/env";
-import { promises as fs } from 'fs';
-import clickhouseQuery, { initializeClickHouse } from "./clickhouse.ts";
+import { ApiClient } from "@twurple/api";
+import { EventSubWsListener } from "@twurple/eventsub-ws";
+
+// Handlers
+import { initializeClickHouse, clickhouseClient } from "./clickhouse.ts";
+import chatMessageHandler from "./handlers/chatMessage.ts";
 
 // Type declaration for fastify config
-declare module 'fastify' {
-    interface FastifyInstance {
-        config: {
-            TWITCH_CLIENT_ID: string;
-            TWITCH_CLIENT_SECRET: string;
-            TWITCH_USER_ID: string;
-            CLICKHOUSE_URI: string;
-        };
-    }
+declare module "fastify" {
+  interface FastifyInstance {
+    config: {
+      TWITCH_CLIENT_ID: string;
+      TWITCH_CLIENT_SECRET: string;
+      TWITCH_USER_ID: string;
+      CLICKHOUSE_URI: string;
+    };
+  }
 }
 
 // Declaring server
@@ -23,41 +31,45 @@ const server = fastify();
 // Importing environment variables
 // Setting env schema
 const envSchema = {
-    type: 'object',
-    required: [ 'TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET', 'TWITCH_USER_ID', 'CLICKHOUSE_URI'],
-    properties: {
-        TWITCH_CLIENT_ID: {
-            type: 'string',
-        },
-        TWITCH_CLIENT_SECRET: {
-            type: 'string',
-        },
-        TWITCH_USER_ID: {
-            type: 'string',
-        },
-        CLICKHOUSE_URI: {
-            type: 'string',
-        }
-    }
-}
+  type: "object",
+  required: [
+    "TWITCH_CLIENT_ID",
+    "TWITCH_CLIENT_SECRET",
+    "TWITCH_USER_ID",
+    "CLICKHOUSE_URI",
+  ],
+  properties: {
+    TWITCH_CLIENT_ID: {
+      type: "string",
+    },
+    TWITCH_CLIENT_SECRET: {
+      type: "string",
+    },
+    TWITCH_USER_ID: {
+      type: "string",
+    },
+    CLICKHOUSE_URI: {
+      type: "string",
+    },
+  },
+};
 
 // Options for env loading
 const options = {
-    dotenv: true,
-    confKey: 'config',
-    schema: envSchema
-}
+  dotenv: true,
+  confKey: "config",
+  schema: envSchema,
+};
 
 // Registering env plugin
 // Using await as this is weirdly slow
-await server.register(fastifyEnv, options)
+await server.register(fastifyEnv, options);
 await server.after();
 
 const clickhouseUri = server.config.CLICKHOUSE_URI;
 
 // Initialize ClickHouse client once
 initializeClickHouse(clickhouseUri);
-await clickhouseQuery()
 
 // Bot set up in line with: https://twurple.js.org/docs/examples/chat/basic-bot.html
 // These are stored in env file; some aspects are in JSON file as they are regularly overwritten
@@ -65,35 +77,72 @@ const clientSecret = server.config.TWITCH_CLIENT_SECRET;
 const clientId = server.config.TWITCH_CLIENT_ID;
 
 // Grabbing data from JSON file
-const tokenData = JSON.parse(await fs.readFile(`./tokens.${server.config.TWITCH_USER_ID}.json`, 'utf-8'));
-const authProvider = new RefreshingAuthProvider({ clientId, clientSecret });
+const tokenData = JSON.parse(
+  await fs.readFile(`./tokens.${server.config.TWITCH_USER_ID}.json`, "utf-8")
+);
+const authProvider = new RefreshingAuthProvider({
+  clientId,
+  clientSecret,
+  appImpliedScopes: [
+    "chat:read",
+    "channel:manage:redemptions",
+    "channel:manage:ads",
+    "channel:read:redemptions",
+    "channel:read:ads",
+    "channel:read:vips",
+    "moderator:manage:banned_users",
+    "moderator:read:banned_users",
+    "moderator:manage:shoutouts",
+  ],
+});
 
 // Updating refresh/access tokens
-authProvider.onRefresh(async (userId, newTokenData) => await fs.writeFile(`./tokens.${userId}.json`, JSON.stringify(newTokenData, null, 4), 'utf-8'));
+authProvider.onRefresh(
+  async (userId, newTokenData) =>
+    await fs.writeFile(
+      `./tokens.${userId}.json`,
+      JSON.stringify(newTokenData, null, 4),
+      "utf-8"
+    )
+);
 
-// Connecting to my chat
-await authProvider.addUserForToken(tokenData, ['chat']);
-const bot = new Bot({ authProvider, channels: ['jbrofee']});
-bot.say("jbrofee", "Hello, I am a bot!");
+// Getting user info and subscribing to events
+await authProvider.addUserForToken(tokenData, [
+  "chat",
+  "channel:read:redemptions",
+]);
+const apiClient = new ApiClient({ authProvider });
+const listener = new EventSubWsListener({ apiClient });
+
+const channelPointsListener = listener.onChannelRedemptionAdd(
+  server.config.TWITCH_USER_ID,
+  (e) => {
+    console.log(e.rewardTitle, e.broadcasterDisplayName, e.input, e.rewardCost);
+  }
+);
+listener.start();
+
+const bot = new Bot({ authProvider, channels: ["jbrofee"] });
+
 bot.onMessage(async (message) => {
-    console.log(`${message.userDisplayName}: ${message.text}`);
-})
+  await chatMessageHandler(message);
+});
 
 bot.onJoin(async (message) => {
-    console.log(`${message.userName} joined the chat`);
-})
+  console.log(`${message.userName} joined the chat`);
+});
 
 // Basic ping check for debugging
-server.get('/ping', async (request) => {
-    console.log("Pinged", request.ip, request.url);
-    return 'pong\n';
-    })
+server.get("/ping", async (request) => {
+  console.log("Pinged", request.ip, request.url);
+  return "pong\n";
+});
 
 // Starting the server and listing on port 3000
 server.listen({ port: 3000 }, (err, address) => {
-    if (err) {
-        console.error(err);
-        process.exit(1);
-    }
-    console.log(`Server listening at ${address}`);
-})
+  if (err) {
+    console.error(err);
+    process.exit(1);
+  }
+  console.log(`Server listening at ${address}`);
+});

@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "nodemon index.ts"
+    "dev": "deno --allow-env --allow-read --allow-net index.ts"
   },
   "type": "module"
 }
