@@ -5,3 +5,5 @@ tokens.*.json
 *.onnx
 *.onnx.json
 *.mp3
+*.d.ts
+*.d.ts.map
