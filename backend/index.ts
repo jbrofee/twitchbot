@@ -2,6 +2,8 @@
 import fastify from "fastify";
 import { fastifyEnv } from "@fastify/env";
 import { promises as fs } from "node:fs";
+import path from "node:path";
+import fastifyStatic from "@fastify/static";
 
 // Twurple imports
 import { RefreshingAuthProvider } from "@twurple/auth";
@@ -64,9 +66,13 @@ const options = {
   schema: envSchema,
 };
 
-// Registering env plugin
+// Registering env and static file serving plugins
 // Using await as this is weirdly slow
 await server.register(fastifyEnv, options);
+await server.register(fastifyStatic, {
+  root: path.join(import.meta.dirname, "overlay"),
+  prefix: "/overlay",
+});
 await server.after();
 
 // Initializning Clickhouse Client
