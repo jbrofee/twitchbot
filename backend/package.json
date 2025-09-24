@@ -8,6 +8,7 @@
     "@twurple/easy-bot": "^7.4.0",
     "@twurple/eventsub-ws": "^7.4.0",
     "fastify": "^5.6.0",
+    "obs-websocket-js": "^5.0.6",
     "openai": "^5.23.0"
   },
   "devDependencies": {

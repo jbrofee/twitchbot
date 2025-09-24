@@ -14,10 +14,11 @@ import { EventSubWsListener } from "@twurple/eventsub-ws";
 // Handlers
 import { initializeClickHouse, clickhouseClient } from "./clickhouse.ts";
 import chatMessageHandler from "./handlers/chat/chatMessage.ts";
-
-// OpenAI/TTS handlers
-import OpenAI from "openai";
 import redemptionHandler from "./handlers/redemption/redemptionHandler.ts";
+
+// External systems
+import OpenAI from "openai";
+import { OBSWebSocket } from "obs-websocket-js";
 
 // Type declaration for fastify config
 declare module "fastify" {
@@ -140,6 +141,18 @@ const channelPointsListener = listener.onChannelRedemptionAdd(
   }
 );
 listener.start();
+
+// Connecting to OBS
+const obs = new OBSWebSocket();
+try {
+  await obs.connect("ws://127.0.0.1:4455", "VuxJGKKyietIM7Vf");
+} catch (error) {
+  console.error("Couldn't connect to OBS.");
+}
+
+obs.on("CurrentProgramSceneChanged", (data) => {
+  console.log("New active scene: " + data.sceneName);
+});
 
 // Creating basic bot
 const bot = new Bot({ authProvider, channels: ["jbrofee"] });
