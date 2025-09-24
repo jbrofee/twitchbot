@@ -22,7 +22,7 @@ export default async function chatMessageHandler(
   const USER_NAME = message.userDisplayName.toLowerCase();
   if (VIP_LIST[USER_NAME] != null) {
     const speechFile = path.resolve(
-      "./handlers/chat/snippets/" + USER_NAME + Date.now() + ".mp3"
+      "./overlay/snippets/" + USER_NAME + Date.now() + ".mp3"
     );
     const inputStream = await openai.audio.speech.create({
       model: "kokoro",

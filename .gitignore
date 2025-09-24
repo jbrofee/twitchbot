@@ -4,3 +4,4 @@ tokens.*.json
 *.env
 *.onnx
 *.onnx.json
+*.mp3
