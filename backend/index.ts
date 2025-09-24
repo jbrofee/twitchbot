@@ -17,6 +17,7 @@ import chatMessageHandler from "./handlers/chat/chatMessage.ts";
 
 // OpenAI/TTS handlers
 import OpenAI from "openai";
+import redemptionHandler from "./handlers/redemption/redemptionHandler.ts";
 
 // Type declaration for fastify config
 declare module "fastify" {
@@ -89,10 +90,13 @@ const openai = new OpenAI({
 // These are stored in env file; some aspects are in JSON file as they are regularly overwritten
 const clientSecret = server.config.TWITCH_CLIENT_SECRET;
 const clientId = server.config.TWITCH_CLIENT_ID;
+const twitchUserId = server.config.TWITCH_USER_ID;
+
+console.log("Checking in index: " + twitchUserId);
 
 // Grabbing data from JSON file
 const tokenData = JSON.parse(
-  await fs.readFile(`./tokens.${server.config.TWITCH_USER_ID}.json`, "utf-8")
+  await fs.readFile(`./tokens.${twitchUserId}.json`, "utf-8")
 );
 const authProvider = new RefreshingAuthProvider({
   clientId,
@@ -107,6 +111,7 @@ const authProvider = new RefreshingAuthProvider({
     "moderator:manage:banned_users",
     "moderator:read:banned_users",
     "moderator:manage:shoutouts",
+    "channel:edit:commercial",
   ],
 });
 
@@ -130,8 +135,8 @@ const listener = new EventSubWsListener({ apiClient });
 
 const channelPointsListener = listener.onChannelRedemptionAdd(
   server.config.TWITCH_USER_ID,
-  (e) => {
-    console.log(e.rewardTitle, e.broadcasterDisplayName, e.input, e.rewardCost);
+  (redemption) => {
+    redemptionHandler(redemption, apiClient, twitchUserId);
   }
 );
 listener.start();
@@ -155,7 +160,7 @@ server.get("/ping", async (request) => {
 });
 
 // Starting the server and listing on port 3000
-server.listen({ port: 3000 }, (err, address) => {
+server.listen({ port: 3001 }, (err, address) => {
   if (err) {
     console.error(err);
     process.exit(1);
