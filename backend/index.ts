@@ -32,6 +32,7 @@ declare module "fastify" {
   }
 }
 
+// TODO make all the below try/catch blocks with proper error handling
 // Declaring server
 const server = fastify();
 
@@ -87,6 +88,15 @@ const openai = new OpenAI({
   baseURL: "http://localhost:8880/v1",
 });
 
+// Connecting to OBS
+// TODO maybe track scene changes? idk
+const obs = new OBSWebSocket();
+try {
+  await obs.connect("ws://127.0.0.1:4455", "VuxJGKKyietIM7Vf");
+} catch (error) {
+  console.error("Couldn't connect to OBS.");
+}
+
 // Bot set up in line with: https://twurple.js.org/docs/examples/chat/basic-bot.html
 // These are stored in env file; some aspects are in JSON file as they are regularly overwritten
 const clientSecret = server.config.TWITCH_CLIENT_SECRET;
@@ -137,22 +147,10 @@ const listener = new EventSubWsListener({ apiClient });
 const channelPointsListener = listener.onChannelRedemptionAdd(
   server.config.TWITCH_USER_ID,
   (redemption) => {
-    redemptionHandler(redemption, apiClient, twitchUserId);
+    redemptionHandler(redemption, apiClient, twitchUserId, obs);
   }
 );
 listener.start();
-
-// Connecting to OBS
-const obs = new OBSWebSocket();
-try {
-  await obs.connect("ws://127.0.0.1:4455", "VuxJGKKyietIM7Vf");
-} catch (error) {
-  console.error("Couldn't connect to OBS.");
-}
-
-obs.on("CurrentProgramSceneChanged", (data) => {
-  console.log("New active scene: " + data.sceneName);
-});
 
 // Creating basic bot
 const bot = new Bot({ authProvider, channels: ["jbrofee"] });

@@ -1,10 +1,14 @@
 import type { ApiClient } from "@twurple/api";
 import type { EventSubChannelRedemptionAddEvent } from "@twurple/eventsub-base";
+import type OBSWebSocket from "obs-websocket-js";
+
+// TODO track redemptions in Clickhouse
 
 export default async function redemptionHandler(
   redemption: EventSubChannelRedemptionAddEvent,
   apiClient: ApiClient,
-  twitchUserId: string
+  twitchUserId: string,
+  obs: OBSWebSocket
 ) {
   const redemptionTitle = redemption.rewardTitle;
   switch (redemptionTitle) {
@@ -20,6 +24,17 @@ export default async function redemptionHandler(
           message: error.message,
           body: error.body,
         });
+      }
+      break;
+
+    case "Mute the streamer":
+      try {
+        obs.call("SetInputMute", {
+          inputName: "Mic/Aux",
+          inputMuted: true,
+        });
+      } catch (error) {
+        console.error("Couldn't mute mic.");
       }
       break;
 
