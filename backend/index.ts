@@ -11,7 +11,10 @@ import { EventSubWsListener } from "@twurple/eventsub-ws";
 
 // Handlers
 import { initializeClickHouse, clickhouseClient } from "./clickhouse.ts";
-import chatMessageHandler from "./handlers/chatMessage.ts";
+import chatMessageHandler from "./handlers/chat/chatMessage.ts";
+
+// OpenAI/TTS handlers
+import OpenAI from "openai";
 
 // Type declaration for fastify config
 declare module "fastify" {
@@ -66,10 +69,15 @@ const options = {
 await server.register(fastifyEnv, options);
 await server.after();
 
+// Initializning Clickhouse Client
 const clickhouseUri = server.config.CLICKHOUSE_URI;
-
-// Initialize ClickHouse client once
 initializeClickHouse(clickhouseUri);
+
+// Initializing OpenAI client for TTS
+const openai = new OpenAI({
+  apiKey: "not-needed",
+  baseURL: "http://localhost:8880/v1",
+});
 
 // Bot set up in line with: https://twurple.js.org/docs/examples/chat/basic-bot.html
 // These are stored in env file; some aspects are in JSON file as they are regularly overwritten
@@ -106,7 +114,7 @@ authProvider.onRefresh(
     )
 );
 
-// Getting user info and subscribing to events
+// Getting user info and subscribing to events using Evensub/ws
 await authProvider.addUserForToken(tokenData, [
   "chat",
   "channel:read:redemptions",
@@ -122,10 +130,12 @@ const channelPointsListener = listener.onChannelRedemptionAdd(
 );
 listener.start();
 
+// Creating basic bot
 const bot = new Bot({ authProvider, channels: ["jbrofee"] });
 
+// Chat message handler
 bot.onMessage(async (message) => {
-  await chatMessageHandler(message);
+  await chatMessageHandler(message, openai);
 });
 
 bot.onJoin(async (message) => {

@@ -2,3 +2,5 @@
 .idea/
 tokens.*.json
 *.env
+*.onnx
+*.onnx.json
