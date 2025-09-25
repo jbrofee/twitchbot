@@ -12,7 +12,10 @@ import { ApiClient } from "@twurple/api";
 import { EventSubWsListener } from "@twurple/eventsub-ws";
 
 // Handlers
-import { initializeClickHouse, clickhouseClient } from "./clickhouse.ts";
+import {
+  initializeClickHouse,
+  clickhouseClient,
+} from "./handlers/clickhouse.ts";
 import chatMessageHandler from "./handlers/chat/chatMessage.ts";
 import redemptionHandler from "./handlers/redemption/redemptionHandler.ts";
 
@@ -145,11 +148,33 @@ const apiClient = new ApiClient({ authProvider });
 const listener = new EventSubWsListener({ apiClient });
 
 const channelPointsListener = listener.onChannelRedemptionAdd(
-  server.config.TWITCH_USER_ID,
+  twitchUserId,
   (redemption) => {
-    redemptionHandler(redemption, apiClient, twitchUserId, obs);
+    redemptionHandler(
+      redemption,
+      apiClient,
+      twitchUserId,
+      obs,
+      clickhouseClient!
+    );
   }
 );
+
+// New chat message handler which can ignore reward input text
+const chatMessageListener = listener.onChannelChatMessage(
+  twitchUserId,
+  twitchUserId,
+  (message) => {
+    if (message.rewardId) {
+      console.info(
+        "[INFO]: Chat message was a channel point redemption, not processing in handler."
+      );
+    } else {
+      console.log("Using listener: " + message);
+    }
+  }
+);
+
 listener.start();
 
 // Creating basic bot

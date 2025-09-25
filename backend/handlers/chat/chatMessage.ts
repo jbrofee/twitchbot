@@ -1,5 +1,5 @@
 import type { MessageEvent } from "@twurple/easy-bot";
-import { clickhouseClient } from "../../clickhouse.ts";
+import { clickhouseClient } from "../clickhouse.ts";
 import OpenAI from "openai";
 import fs from "node:fs";
 import path from "node:path";
@@ -19,18 +19,23 @@ export default async function chatMessageHandler(
   message: MessageEvent,
   openai: OpenAI
 ) {
+  if (message.isAction) return;
   const USER_NAME = message.userDisplayName.toLowerCase();
   if (VIP_LIST[USER_NAME] != null) {
-    const speechFile = path.resolve(
-      "./overlay/snippets/" + USER_NAME + Date.now() + ".mp3"
-    );
-    const inputStream = await openai.audio.speech.create({
-      model: "kokoro",
-      input: message.text,
-      voice: VIP_LIST[USER_NAME],
-    });
-    const buffer = Buffer.from(await inputStream.arrayBuffer());
-    await fs.promises.writeFile(speechFile, buffer);
+    try {
+      const speechFile = path.resolve(
+        "./overlay/snippets/" + USER_NAME + Date.now() + ".mp3"
+      );
+      const inputStream = await openai.audio.speech.create({
+        model: "kokoro",
+        input: message.text,
+        voice: VIP_LIST[USER_NAME],
+      });
+      const buffer = Buffer.from(await inputStream.arrayBuffer());
+      await fs.promises.writeFile(speechFile, buffer);
+    } catch (error) {
+      console.log("Couldn't generate TTS of chat message. " + error);
+    }
   }
 
   console.info(message.text, message.userDisplayName);
@@ -43,6 +48,7 @@ export default async function chatMessageHandler(
           message: message.text,
           timestamp: Date.now(),
           user_name: message.userName,
+          user_id: message.userId,
         },
       ],
       format: "JSONEachRow",

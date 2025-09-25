@@ -7,7 +7,7 @@
 For easy copying
 
 ```
-twitch token -u -s "channel:manage:ads channel:manage:redemptions channel:read:ads channel:read:redemptions channel:read:vips chat:edit chat:read moderator:manage:banned_users moderator:manage:shoutouts moderator:read:banned_users channel:edit:commercial"
+twitch token -u -s "channel:manage:ads channel:manage:redemptions channel:read:ads channel:read:redemptions channel:read:vips chat:edit chat:read moderator:manage:banned_users moderator:manage:shoutouts moderator:read:banned_users channel:edit:commercial user:read:chat"
 ```
 
 # TTS
