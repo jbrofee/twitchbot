@@ -25,9 +25,8 @@ export default async function chatMessageHandler(
   const USER_NAME = message.userDisplayName.toLowerCase();
   if (VIP_LIST[USER_NAME] != null) {
     try {
-      const speechFile = path.resolve(
-        "./overlay/snippets/" + USER_NAME + Date.now() + ".mp3"
-      );
+      const fileName = USER_NAME + Date.now() + ".mp3";
+      const speechFile = path.resolve("./overlay/snippets/" + fileName);
       const inputStream = await openai.audio.speech.create({
         model: "kokoro",
         input: message.text,
@@ -35,6 +34,9 @@ export default async function chatMessageHandler(
       });
       const buffer = Buffer.from(await inputStream.arrayBuffer());
       await fs.promises.writeFile(speechFile, buffer);
+      overlayWebSocket.send(
+        `http://localhost:3001/overlay/snippets/${fileName}`
+      );
     } catch (error) {
       console.log("Couldn't generate TTS of chat message. " + error);
     }
@@ -58,6 +60,4 @@ export default async function chatMessageHandler(
   } catch (error) {
     console.error("Error inserting chat message:", error);
   }
-
-  overlayWebSocket.send(message.text);
 }
