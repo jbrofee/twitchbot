@@ -21,7 +21,7 @@ function App() {
   return (
     <>
       <div className="text-2xl">Testing Tailwind</div>
-      <button onClick={sendWsMessage}>Send test message</button>
+      <button onClick={sendWsMessage}>Send test messages</button>
     </>
   );
 }
