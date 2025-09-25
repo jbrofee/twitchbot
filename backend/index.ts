@@ -4,6 +4,7 @@ import { fastifyEnv } from "@fastify/env";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import fastifyStatic from "@fastify/static";
+import fastifyWebsocket from "@fastify/websocket";
 
 // Twurple imports
 import { RefreshingAuthProvider } from "@twurple/auth";
@@ -79,6 +80,7 @@ await server.register(fastifyStatic, {
   root: path.join(import.meta.dirname, "overlay"),
   prefix: "/overlay",
 });
+await server.register(fastifyWebsocket);
 await server.after();
 
 // Initializning Clickhouse Client
@@ -147,6 +149,7 @@ await authProvider.addUserForToken(tokenData, [
 const apiClient = new ApiClient({ authProvider });
 const listener = new EventSubWsListener({ apiClient });
 
+// Listener for channel point redemptions
 const channelPointsListener = listener.onChannelRedemptionAdd(
   twitchUserId,
   (redemption) => {
@@ -175,6 +178,7 @@ const chatMessageListener = listener.onChannelChatMessage(
   }
 );
 
+// Starts the above listeners
 listener.start();
 
 // Creating basic bot
@@ -193,6 +197,13 @@ bot.onJoin(async (message) => {
 server.get("/ping", async (request) => {
   console.log("Pinged", request.ip, request.url);
   return "pong\n";
+});
+
+server.get("/websocket", { websocket: true }, (socket, req) => {
+  console.log("Client connected " + req.id + req.id);
+  socket.onmessage = (message) => {
+    console.log(message.data);
+  };
 });
 
 // Starting the server and listing on port 3000

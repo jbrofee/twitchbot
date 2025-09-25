@@ -13,6 +13,7 @@ const VIP_LIST: Record<string, string> = {
   black_tomcat: "am_onyx",
   probakis: "am_echo",
   jbrofee: "pm_alex",
+  daintyxmagician: "em_santa",
 };
 
 export default async function chatMessageHandler(
