@@ -7,7 +7,7 @@ function App() {
   };
 
   wsConnection.onmessage = (message) => {
-    console.log("Message recevied: " + message);
+    console.log("Message recevied: " + message.data);
   };
 
   wsConnection.onclose = () => {
@@ -19,10 +19,10 @@ function App() {
   }
 
   return (
-    <>
+    <div className="text-white">
       <div className="text-2xl">Testing Tailwind</div>
       <button onClick={sendWsMessage}>Send test messages</button>
-    </>
+    </div>
   );
 }
 

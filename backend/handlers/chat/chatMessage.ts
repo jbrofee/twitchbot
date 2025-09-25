@@ -18,7 +18,8 @@ const VIP_LIST: Record<string, string> = {
 
 export default async function chatMessageHandler(
   message: MessageEvent,
-  openai: OpenAI
+  openai: OpenAI,
+  overlayWebSocket: WebSocket
 ) {
   if (message.isAction) return;
   const USER_NAME = message.userDisplayName.toLowerCase();
@@ -57,4 +58,6 @@ export default async function chatMessageHandler(
   } catch (error) {
     console.error("Error inserting chat message:", error);
   }
+
+  overlayWebSocket.send(message.text);
 }

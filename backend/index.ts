@@ -93,6 +93,9 @@ const openai = new OpenAI({
   baseURL: "http://localhost:8880/v1",
 });
 
+// Initializing WebSocket here at global level so it can be re-addressed later
+var overlayWebSocket: any = null;
+
 // Connecting to OBS
 // TODO maybe track scene changes? idk
 const obs = new OBSWebSocket();
@@ -186,7 +189,7 @@ const bot = new Bot({ authProvider, channels: ["jbrofee"] });
 
 // Chat message handler
 bot.onMessage(async (message) => {
-  await chatMessageHandler(message, openai);
+  await chatMessageHandler(message, openai, overlayWebSocket);
 });
 
 bot.onJoin(async (message) => {
@@ -200,6 +203,7 @@ server.get("/ping", async (request) => {
 });
 
 server.get("/websocket", { websocket: true }, (socket, req) => {
+  overlayWebSocket = socket;
   console.log("Client connected " + req.id + req.id);
   socket.onmessage = (message) => {
     console.log(message.data);
