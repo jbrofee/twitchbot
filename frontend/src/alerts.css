@@ -46,6 +46,23 @@
     animation: alert-out 250ms ease-in forwards;
 }
 
+/* Direction-specific: appear from behind camera border */
+.animate-alert-in-below {
+    animation: alert-in-below 220ms ease-out forwards;
+}
+
+.animate-alert-out-below {
+    animation: alert-out-below 220ms ease-in forwards;
+}
+
+.animate-alert-in-above {
+    animation: alert-in-above 220ms ease-out forwards;
+}
+
+.animate-alert-out-above {
+    animation: alert-out-above 220ms ease-in forwards;
+}
+
 @keyframes alert-in {
     from {
         transform: translateY(12px);
@@ -58,6 +75,50 @@
 }
 
 @keyframes alert-out {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+}
+
+@keyframes alert-in-below {
+    from {
+        transform: translateY(-12px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes alert-out-below {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(-12px);
+        opacity: 0;
+    }
+}
+
+@keyframes alert-in-above {
+    from {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes alert-out-above {
     from {
         transform: translateY(0);
         opacity: 1;

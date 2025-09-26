@@ -42,7 +42,7 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
-export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
+export const WebSocketProvider: React.FC<{ children?: React.ReactNode }> = ({
   children,
 }) => {
   const [audioInstances, setAudioInstances] = useState<AudioInstance[]>([]);
@@ -60,14 +60,17 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
       cropTop: 0,
       sourceWidth: 1920,
       sourceHeight: 1080,
-      scaleX: 0,
-      scaleY: 0,
+      scaleX: 1,
+      scaleY: 1,
     }
   );
+
   const wsConnectionRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const manuallyClosedRef = useRef(false);
   const audioCounterRef = useRef(0);
   const followCounterRef = useRef(0);
-  // Keep latest audio instances for cleanup without re-running the effect
   const audioInstancesRef = useRef<AudioInstance[]>([]);
 
   useEffect(() => {
@@ -75,60 +78,108 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [audioInstances]);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:3001/websocket");
+    const WS_URL = "ws://localhost:3001/websocket";
 
-    ws.onopen = () => {
-      console.log("Connected to WebSocket server");
+    const scheduleReconnect = () => {
+      if (manuallyClosedRef.current) return;
+      const attempt = reconnectAttemptRef.current;
+      const delay =
+        Math.min(10000, 250 * Math.pow(2, attempt)) +
+        Math.floor(Math.random() * 250);
+      if (reconnectTimeoutRef.current)
+        window.clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        reconnectAttemptRef.current += 1;
+        connect();
+      }, delay);
+      console.warn(
+        `[WS] Scheduling reconnect in ${delay}ms (attempt ${attempt + 1})`
+      );
     };
 
-    ws.onmessage = (message) => {
-      const parsedData = JSON.parse(message.data);
-      switch (parsedData.mode) {
-        case "tts":
-          playAudioFromUrl(parsedData.url);
-          break;
-        case "follow":
-          console.log("Follow event");
-          playFollowAlert(parsedData.url);
-          break;
-        case "camera":
-          console.log("Updating camera box");
-          updateCameraBox(parsedData.payload);
-          break;
-        default:
-          console.log("No match found");
+    const connect = () => {
+      try {
+        console.log("[WS] Connecting...");
+        const ws = new WebSocket(WS_URL);
+        wsConnectionRef.current = ws;
+
+        ws.onopen = () => {
+          console.log("[WS] Connected");
+          reconnectAttemptRef.current = 0;
+          if (reconnectTimeoutRef.current) {
+            window.clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+          }
+        };
+
+        ws.onmessage = (message) => {
+          try {
+            const parsedData = JSON.parse(message.data);
+            switch (parsedData.mode) {
+              case "tts":
+                if (parsedData.url) playAudioFromUrl(parsedData.url);
+                break;
+              case "follow":
+                console.log("[WS] Follow event");
+                if (parsedData.url) playFollowAlert(parsedData.url);
+                break;
+              case "camera":
+                if (parsedData?.payload) updateCameraBox(parsedData.payload);
+                break;
+              default:
+                console.debug("[WS] Unhandled mode", parsedData?.mode);
+            }
+          } catch (err) {
+            console.error("[WS] Error parsing message", err, message.data);
+          }
+        };
+
+        ws.onerror = (event) => {
+          console.error("[WS] Error", event);
+        };
+
+        ws.onclose = (event) => {
+          console.warn(`[WS] Closed code=${event.code} reason=${event.reason}`);
+          if (!manuallyClosedRef.current) scheduleReconnect();
+        };
+      } catch (err) {
+        console.error("[WS] Connect threw", err);
+        scheduleReconnect();
       }
     };
 
-    ws.onclose = () => {
-      console.log("WebSocket connection closed");
-    };
-
-    wsConnectionRef.current = ws;
+    manuallyClosedRef.current = false;
+    connect();
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-        // Use ref to avoid adding state to deps
-        audioInstancesRef.current.forEach((instance) => {
-          instance.audio.pause();
-          instance.audio.src = "";
-        });
+      manuallyClosedRef.current = true;
+      if (reconnectTimeoutRef.current) {
+        window.clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
+      if (
+        wsConnectionRef.current &&
+        wsConnectionRef.current.readyState === WebSocket.OPEN
+      ) {
+        try {
+          wsConnectionRef.current.close();
+        } catch {
+          // ignore close error
+        }
+      }
+      audioInstancesRef.current.forEach((instance) => {
+        instance.audio.pause();
+        instance.audio.src = "";
+      });
     };
-  }, []); // Empty deps to run only once
+  }, []);
 
   const playAudioFromUrl = (url: string) => {
     const audioId = `audio_${audioCounterRef.current++}`;
     const audio = new Audio(url);
     audio.preload = "auto";
 
-    const audioInstance: AudioInstance = {
-      id: audioId,
-      url,
-      audio,
-    };
-
+    const audioInstance: AudioInstance = { id: audioId, url, audio };
     setAudioInstances((prev) => [...prev, audioInstance]);
 
     audio.onended = () => {
@@ -137,14 +188,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
       );
       audio.src = "";
     };
-
     audio.onerror = (error) => {
       console.error(`Failed to load audio: ${url}`, error);
       setAudioInstances((prev) =>
         prev.filter((instance) => instance.id !== audioId)
       );
     };
-
     audio.play().catch((error) => {
       console.error(`Failed to play audio: ${url}`, error);
       setAudioInstances((prev) =>
@@ -155,36 +204,25 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const playFollowAlert = (username: string) => {
     const alertId = `follow_${followCounterRef.current++}`;
-
     const followAlert: FollowAlert = {
       id: alertId,
       username,
       isVisible: false,
     };
-
     setFollowAlerts((prev) => [...prev, followAlert]);
 
-    // Trigger animation after a brief delay to ensure DOM update
     setTimeout(() => {
       setFollowAlerts((prev) =>
-        prev.map((alert) =>
-          alert.id === alertId ? { ...alert, isVisible: true } : alert
-        )
+        prev.map((a) => (a.id === alertId ? { ...a, isVisible: true } : a))
       );
     }, 50);
-
-    // Hide alert after 3 seconds
     setTimeout(() => {
       setFollowAlerts((prev) =>
-        prev.map((alert) =>
-          alert.id === alertId ? { ...alert, isVisible: false } : alert
-        )
+        prev.map((a) => (a.id === alertId ? { ...a, isVisible: false } : a))
       );
     }, 3000);
-
-    // Remove alert from DOM after animation completes
     setTimeout(() => {
-      setFollowAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
+      setFollowAlerts((prev) => prev.filter((a) => a.id !== alertId));
     }, 3500);
   };
 
@@ -197,50 +235,52 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  function updateCameraBox(payload: CameraTransformInfo) {
-    console.log(payload.width - payload.cropLeft - payload.cropRight);
-    setCameraDimensions({
-      width: payload.width,
-      height: payload.height,
-      positionX: payload.positionX,
-      positionY: payload.positionY,
-      rotation: payload.rotation,
-      cropLeft: payload.cropLeft,
-      cropRight: payload.cropRight,
-      cropBottom: payload.cropBottom,
-      sourceHeight: payload.sourceHeight,
-      sourceWidth: payload.sourceWidth,
-      cropTop: payload.cropTop,
-      scaleX: payload.scaleX,
-      scaleY: payload.scaleY,
-    });
+  function updateCameraBox(payload: Partial<CameraTransformInfo>) {
+    setCameraDimensions((prev) => ({ ...prev, ...payload }));
   }
+
+  // Precompute camera border box width/height for stable rendering
+  const srcW = Number.isFinite(cameraDimensions.sourceWidth)
+    ? cameraDimensions.sourceWidth
+    : 1920;
+  const srcH = Number.isFinite(cameraDimensions.sourceHeight)
+    ? cameraDimensions.sourceHeight
+    : 1080;
+  const cropL = Number.isFinite(cameraDimensions.cropLeft)
+    ? cameraDimensions.cropLeft
+    : 0;
+  const cropR = Number.isFinite(cameraDimensions.cropRight)
+    ? cameraDimensions.cropRight
+    : 0;
+  const cropT = Number.isFinite(cameraDimensions.cropTop)
+    ? cameraDimensions.cropTop
+    : 0;
+  const cropB = Number.isFinite(cameraDimensions.cropBottom)
+    ? cameraDimensions.cropBottom
+    : 0;
+  const scaleX =
+    cameraDimensions.scaleX && cameraDimensions.scaleX !== 0
+      ? cameraDimensions.scaleX
+      : 1;
+  const scaleY =
+    cameraDimensions.scaleY && cameraDimensions.scaleY !== 0
+      ? cameraDimensions.scaleY
+      : 1;
+  const camBorderWidth = Math.max(0, (srcW - cropL - cropR) * scaleX - 5);
+  const camBorderHeight = Math.max(0, (srcH - cropT - cropB) * scaleY - 5);
 
   return (
     <WebSocketContext.Provider value={{ audioInstances, sendMessage }}>
       {children}
-
-      {/* Camera box */}
       <div>
+        {/* Camera box */}
         <div
           style={{
             position: "fixed",
             left: `${cameraDimensions.positionX}px`,
             top: `${cameraDimensions.positionY}px`,
-            width: `${
-              (cameraDimensions.sourceWidth -
-                cameraDimensions.cropLeft -
-                cameraDimensions.cropRight) *
-                (cameraDimensions.scaleX !== 0 ? cameraDimensions.scaleX : 1) -
-              5
-            }px`,
-            height: `${
-              (cameraDimensions.sourceHeight -
-                cameraDimensions.cropTop -
-                cameraDimensions.cropBottom) *
-                (cameraDimensions.scaleY !== 0 ? cameraDimensions.scaleY : 1) -
-              5
-            }px`,
+            width: `${camBorderWidth}px`,
+            height: `${camBorderHeight}px`,
             transform: `rotate(${cameraDimensions.rotation}deg)`,
             border: "5px solid #FFD700",
             backgroundColor: "transparent",
@@ -248,39 +288,75 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
           }}
         />
 
+        {/* Follow alerts */}
         <div>
           {followAlerts.map((alert) => {
-            // Compute camera-rendered width taking into account cropping and scale
-            const camWidth =
-              (cameraDimensions.sourceWidth -
-                cameraDimensions.cropLeft -
-                cameraDimensions.cropRight) *
-                (cameraDimensions.scaleX !== 0 ? cameraDimensions.scaleX : 1) -
-              5;
-            const camHeight =
-              (cameraDimensions.sourceHeight -
-                cameraDimensions.cropTop -
-                cameraDimensions.cropBottom) *
-                (cameraDimensions.scaleY !== 0 ? cameraDimensions.scaleY : 1) -
-              5;
+            const posX = Number.isFinite(cameraDimensions.positionX)
+              ? cameraDimensions.positionX
+              : 100;
+            const posY = Number.isFinite(cameraDimensions.positionY)
+              ? cameraDimensions.positionY
+              : 100;
+
+            // Always position alerts underneath the camera box
+            const gap = 15;
+            const cameraBottom = posY + camBorderHeight;
+            const alertTop = cameraBottom + gap;
+
+            // Debug logging
+            console.log("Alert positioning:", {
+              posX,
+              posY,
+              camBorderWidth,
+              camBorderHeight,
+              cameraBottom,
+              alertTop,
+            });
 
             return (
               <div
                 key={alert.id}
-                className={`fixed z-50 select-none drop-shadow ${
-                  alert.isVisible ? "animate-alert-in" : "animate-alert-out"
-                }`}
                 style={{
-                  // Place directly under the camera box
-                  left: `${cameraDimensions.positionX}px`,
-                  top: `${cameraDimensions.positionY + camHeight + 8}px`,
-                  width: `${Math.max(camWidth, 120)}px`,
+                  position: "fixed",
+                  left: `${posX}px`,
+                  top: `${alertTop}px`,
+                  width: `${camBorderWidth}px`,
+                  height: "60px",
                   pointerEvents: "none",
+                  zIndex: alert.isVisible ? 6 : 4,
+                  transform: `rotate(${cameraDimensions.rotation}deg)`,
+                  transition: "opacity 0.3s ease, transform 0.3s ease",
+                  opacity: alert.isVisible ? 1 : 0,
                 }}
               >
-                <div className="mx-auto w-full max-w-full rounded-md border border-yellow-300/60 bg-yellow-200/90 px-3 py-2 text-center text-sm font-semibold text-neutral-900 shadow">
-                  Thanks for the follow,
-                  <span className="mx-1 underline decoration-yellow-700/50 underline-offset-2">
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "8px",
+                    border: "3px solid #FFD700",
+                    backgroundColor: "rgba(255, 215, 0, 0.9)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    color: "#000000",
+                    textShadow: "1px 1px 2px rgba(255,255,255,0.8)",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                  }}
+                >
+                  Thanks for the follow,{" "}
+                  <span
+                    style={{
+                      textDecoration: "underline",
+                      textDecorationColor: "#B8860B",
+                      textUnderlineOffset: "3px",
+                      marginLeft: "6px",
+                      marginRight: "6px",
+                      fontWeight: "900",
+                    }}
+                  >
                     {alert.username}
                   </span>
                   !
