@@ -18,19 +18,19 @@ interface CameraTransformInfo {
   boundsHeight?: number;
   boundsType?: string;
   boundsWidth?: number;
-  cropBottom?: number;
-  cropLeft?: number;
-  cropRight?: number;
+  cropBottom: number;
+  cropLeft: number;
+  cropRight: number;
   cropToBounds?: number;
-  cropTop?: number;
+  cropTop: number;
   height: number;
   positionX: number;
   positionY: number;
   rotation: number;
-  scaleX?: number;
-  scaleY?: number;
-  sourceHeight?: number;
-  sourceWidth?: number;
+  scaleX: number;
+  scaleY: number;
+  sourceHeight: number;
+  sourceWidth: number;
   width: number;
 }
 
@@ -53,6 +53,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
       rotation: 0,
       positionX: 100,
       positionY: 100,
+      cropRight: 0,
+      cropLeft: 0,
+      cropBottom: 0,
+      cropTop: 0,
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      scaleX: 0,
+      scaleY: 0,
     }
   );
   const wsConnectionRef = useRef<WebSocket | null>(null);
@@ -181,12 +189,21 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   function updateCameraBox(payload: CameraTransformInfo) {
+    console.log(payload.width - payload.cropLeft - payload.cropRight);
     setCameraDimensions({
       width: payload.width,
       height: payload.height,
       positionX: payload.positionX,
       positionY: payload.positionY,
       rotation: payload.rotation,
+      cropLeft: payload.cropLeft,
+      cropRight: payload.cropRight,
+      cropBottom: payload.cropBottom,
+      sourceHeight: payload.sourceHeight,
+      sourceWidth: payload.sourceWidth,
+      cropTop: payload.cropTop,
+      scaleX: payload.scaleX,
+      scaleY: payload.scaleY,
     });
   }
 
@@ -198,10 +215,21 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
       <div
         style={{
           position: "fixed",
-          left: `${cameraDimensions?.positionX}px`,
-          top: `${cameraDimensions?.positionY}px`,
-          width: `${cameraDimensions?.width + 10}px`,
-          height: `${cameraDimensions.height + 10}px`,
+          left: `${cameraDimensions.positionX}px`,
+          top: `${cameraDimensions.positionY}px`,
+          width: `${
+            (cameraDimensions.sourceWidth -
+              cameraDimensions.cropLeft -
+              cameraDimensions.cropRight) *
+            (cameraDimensions.scaleX !== 0 ? cameraDimensions.scaleX : 1)
+          }px`,
+          height: `${
+            (cameraDimensions.sourceHeight -
+              cameraDimensions.cropTop -
+              cameraDimensions.cropBottom) *
+            (cameraDimensions.scaleY !== 0 ? cameraDimensions.scaleY : 1)
+          }px`,
+          transform: `rotate(${cameraDimensions.rotation}deg)`,
           border: "5px solid #FFD700",
           backgroundColor: "transparent",
         }}

@@ -38,7 +38,7 @@ export default async function obsInitialize(
     });
     const transformInfo =
       webcamSizing.sceneItemTransform as unknown as TransformInfo;
-    console.log(transformInfo.alignment);
+    console.log(transformInfo);
     overlayWebSocket.send(
       JSON.stringify({
         mode: "camera",
