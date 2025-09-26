@@ -40,8 +40,10 @@ export default async function chatMessageHandler(
       const buffer = Buffer.from(await inputStream.arrayBuffer());
       await fs.promises.writeFile(speechFile, buffer);
       const payload: ttsMessage = {
-        mode: "tts",
-        url: `http://localhost:3001/overlay/snippets/${fileName}`,
+        // mode: "tts",
+        mode: "follow",
+        // url: `http://localhost:3001/overlay/snippets/${fileName}`,
+        url: message.userName,
       };
       overlayWebSocket.send(JSON.stringify(payload));
     } catch (error) {

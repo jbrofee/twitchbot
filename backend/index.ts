@@ -106,7 +106,6 @@ try {
 } catch (error) {
   console.error("[ERROR]: Couldn't connect to OBS.");
 }
-obsInitialize(obs);
 
 // Bot set up in line with: https://twurple.js.org/docs/examples/chat/basic-bot.html
 // These are stored in env file; some aspects are in JSON file as they are regularly overwritten
@@ -205,6 +204,7 @@ server.get("/ping", async (request) => {
 
 server.get("/websocket", { websocket: true }, (socket, req) => {
   overlayWebSocket = socket;
+  obsInitialize(obs, overlayWebSocket);
   console.log("Client connected " + req.id + req.id);
   socket.onmessage = (message) => {
     console.log(message.data);
