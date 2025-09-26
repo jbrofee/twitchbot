@@ -23,6 +23,7 @@ import redemptionHandler from "./handlers/redemption/redemptionHandler.ts";
 // External systems
 import OpenAI from "openai";
 import { OBSWebSocket } from "obs-websocket-js";
+import obsInitialize from "./handlers/obsInitialise.ts";
 
 // Type declaration for fastify config
 declare module "fastify" {
@@ -96,22 +97,22 @@ const openai = new OpenAI({
 // Initializing WebSocket here at global level so it can be re-addressed later
 var overlayWebSocket: any = null;
 
-// Connecting to OBS
+// Connecting to OBS and adding listeners in handler
 // TODO maybe track scene changes? idk
 const obs = new OBSWebSocket();
 try {
   await obs.connect("ws://127.0.0.1:4455", "VuxJGKKyietIM7Vf");
+  console.info("[INFO]: OBS connected with SceneItems subscription.");
 } catch (error) {
-  console.error("Couldn't connect to OBS.");
+  console.error("[ERROR]: Couldn't connect to OBS.");
 }
+obsInitialize(obs);
 
 // Bot set up in line with: https://twurple.js.org/docs/examples/chat/basic-bot.html
 // These are stored in env file; some aspects are in JSON file as they are regularly overwritten
 const clientSecret = server.config.TWITCH_CLIENT_SECRET;
 const clientId = server.config.TWITCH_CLIENT_ID;
 const twitchUserId = server.config.TWITCH_USER_ID;
-
-console.log("Checking in index: " + twitchUserId);
 
 // Grabbing data from JSON file
 const tokenData = JSON.parse(

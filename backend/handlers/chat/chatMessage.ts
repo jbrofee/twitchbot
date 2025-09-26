@@ -4,6 +4,11 @@ import OpenAI from "openai";
 import fs from "node:fs";
 import path from "node:path";
 
+interface ttsMessage {
+  mode: string;
+  url: string;
+}
+
 const VIP_LIST: Record<string, string> = {
   septten: "af_aoede",
   lanzsdiff: "am_adam",
@@ -34,9 +39,11 @@ export default async function chatMessageHandler(
       });
       const buffer = Buffer.from(await inputStream.arrayBuffer());
       await fs.promises.writeFile(speechFile, buffer);
-      overlayWebSocket.send(
-        `http://localhost:3001/overlay/snippets/${fileName}`
-      );
+      const payload: ttsMessage = {
+        mode: "tts",
+        url: `http://localhost:3001/overlay/snippets/${fileName}`,
+      };
+      overlayWebSocket.send(JSON.stringify(payload));
     } catch (error) {
       console.log("Couldn't generate TTS of chat message. " + error);
     }

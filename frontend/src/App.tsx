@@ -1,5 +1,6 @@
 import "./App.css";
 import { useState, useEffect, useRef } from "react";
+import { OBSWebSocket } from "obs-websocket-js";
 
 interface AudioInstance {
   id: string;
@@ -7,7 +8,28 @@ interface AudioInstance {
   audio: HTMLAudioElement;
 }
 
+// interface ttsMessage {
+//   mode: string;
+//   url: string;
+// }
+
 function App() {
+  const obs = new OBSWebSocket();
+  try {
+    obs.connect("ws://127.0.0.1:4455", "VuxJGKKyietIM7Vf");
+    console.log("OBS connected with SceneItems subscription.");
+
+    obs.on("SceneItemTransformChanged", (args) => {
+      console.log("SceneItemTransformChanged triggered:");
+      console.log("Full args:", JSON.stringify(args, null, 2)); // Proper logging
+      if (args.sceneItemTransform) {
+        console.log("Transform data:", args.sceneItemTransform);
+      }
+    });
+  } catch (error) {
+    console.error("Couldn't connect to OBS." + error);
+  }
+
   const [audioInstances, setAudioInstances] = useState<AudioInstance[]>([]);
   const wsConnectionRef = useRef<WebSocket | null>(null);
   const audioCounterRef = useRef(0);
@@ -20,8 +42,14 @@ function App() {
     };
 
     ws.onmessage = (message) => {
-      console.log("Message received: " + message.data);
-      playAudioFromUrl(message.data);
+      const parsedData = JSON.parse(message.data);
+      switch (parsedData.mode) {
+        case "tts":
+          playAudioFromUrl(parsedData.url);
+          break;
+        default:
+          console.log("No match found");
+      }
     };
 
     ws.onclose = () => {
@@ -39,7 +67,7 @@ function App() {
         instance.audio.src = "";
       });
     };
-  }, []);
+  });
 
   const playAudioFromUrl = (url: string) => {
     const audioId = `audio_${audioCounterRef.current++}`;
