@@ -279,10 +279,10 @@ export const WebSocketProvider: React.FC<{ children?: React.ReactNode }> = ({
             position: "fixed",
             left: `${cameraDimensions.positionX}px`,
             top: `${cameraDimensions.positionY}px`,
-            width: `${camBorderWidth}px`,
-            height: `${camBorderHeight}px`,
+            width: `${camBorderWidth - 5}px`,
+            height: `${camBorderHeight - 10}px`,
             transform: `rotate(${cameraDimensions.rotation}deg)`,
-            border: "5px solid #FFD700",
+            border: "10px solid #FFD700",
             backgroundColor: "transparent",
             zIndex: 5,
           }}
@@ -302,16 +302,6 @@ export const WebSocketProvider: React.FC<{ children?: React.ReactNode }> = ({
             const gap = 15;
             const cameraBottom = posY + camBorderHeight;
             const alertTop = cameraBottom + gap;
-
-            // Debug logging
-            console.log("Alert positioning:", {
-              posX,
-              posY,
-              camBorderWidth,
-              camBorderHeight,
-              cameraBottom,
-              alertTop,
-            });
 
             return (
               <div

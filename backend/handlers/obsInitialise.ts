@@ -1,4 +1,5 @@
 import type OBSWebSocket from "obs-websocket-js";
+import type { NodeClickHouseClient } from "@clickhouse/client/dist/client.js";
 
 interface TransformInfo {
   alignment: number;
@@ -22,11 +23,35 @@ interface TransformInfo {
   width: number;
 }
 
+var sceneChangeCount = 0;
+
 export default async function obsInitialize(
   obs: OBSWebSocket,
-  overlayWebSocket: WebSocket
+  getOverlayWebSocket: () => WebSocket | null,
+  clickhouseClient: NodeClickHouseClient
 ) {
-  obs.on("CurrentProgramSceneChanged", async () => {
+  obs.on("SceneTransitionStarted", async () => {
+    console.info("[INFO]: OBS Scene changed.");
+    sceneChangeCount++;
+    clickhouseClient.insert({
+      table: "scene_changes",
+      values: [
+        {
+          change_number: sceneChangeCount,
+          change_time: Date.now(),
+        },
+      ],
+      format: "JSONEachRow",
+    });
+    // Get the current WebSocket connection
+    const overlayWebSocket = getOverlayWebSocket();
+    if (!overlayWebSocket) {
+      console.warn(
+        "[WARN]: No WebSocket connection available for OBS scene change."
+      );
+      return;
+    }
+
     const currentScene = await obs.call("GetCurrentProgramScene");
     const webcamId = await obs.call("GetSceneItemId", {
       sceneName: currentScene.sceneName,
@@ -38,7 +63,6 @@ export default async function obsInitialize(
     });
     const transformInfo =
       webcamSizing.sceneItemTransform as unknown as TransformInfo;
-    console.log(transformInfo);
     overlayWebSocket.send(
       JSON.stringify({
         mode: "camera",

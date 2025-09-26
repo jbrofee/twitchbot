@@ -3,6 +3,7 @@ import { clickhouseClient } from "../clickhouse.ts";
 import OpenAI from "openai";
 import fs from "node:fs";
 import path from "node:path";
+import type { EventSubChannelChatMessageEvent } from "@twurple/eventsub-base";
 
 interface ttsMessage {
   mode: string;
@@ -22,12 +23,11 @@ const VIP_LIST: Record<string, string> = {
 };
 
 export default async function chatMessageHandler(
-  message: MessageEvent,
+  message: EventSubChannelChatMessageEvent,
   openai: OpenAI,
   overlayWebSocket: WebSocket
 ) {
-  if (message.isAction) return;
-  const USER_NAME = message.userDisplayName.toLowerCase();
+  const USER_NAME = message.chatterDisplayName.toLowerCase();
   if (VIP_LIST[USER_NAME] != null) {
     console.log("Pinged");
     // Try to generate TTS, but don't block sending the follow event if it fails
@@ -36,7 +36,7 @@ export default async function chatMessageHandler(
       const speechFile = path.resolve("./overlay/snippets/" + fileName);
       const inputStream = await openai.audio.speech.create({
         model: "kokoro",
-        input: message.text,
+        input: message.messageText,
         voice: VIP_LIST[USER_NAME],
       });
       const buffer = Buffer.from(await inputStream.arrayBuffer());
@@ -48,7 +48,7 @@ export default async function chatMessageHandler(
       try {
         const payload: ttsMessage = {
           mode: "follow",
-          url: message.userName, // repurposed to carry username for the overlay
+          url: message.chatterDisplayName, // repurposed to carry username for the overlay
         };
         // Guard against missing/closed socket
         if (
@@ -70,17 +70,17 @@ export default async function chatMessageHandler(
     }
   }
 
-  console.info(message.text, message.userDisplayName);
+  console.info(message.messageText, message.chatterDisplayName);
   try {
     await clickhouseClient?.insert({
       table: "chat_messages",
       values: [
         {
-          user_display_name: message.userDisplayName,
-          message: message.text,
+          user_display_name: message.chatterDisplayName,
+          message: message.messageText,
           timestamp: Date.now(),
-          user_name: message.userName,
-          user_id: message.userId,
+          user_name: message.chatterName,
+          user_id: message.chatterId,
         },
       ],
       format: "JSONEachRow",

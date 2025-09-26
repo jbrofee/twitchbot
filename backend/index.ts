@@ -103,6 +103,9 @@ const obs = new OBSWebSocket();
 try {
   await obs.connect("ws://127.0.0.1:4455", "VuxJGKKyietIM7Vf");
   console.info("[INFO]: OBS connected with SceneItems subscription.");
+
+  // Initialize OBS listeners once, outside of WebSocket connections
+  obsInitialize(obs, () => overlayWebSocket, clickhouseClient!);
 } catch (error) {
   console.error("[ERROR]: Couldn't connect to OBS.");
 }
@@ -176,7 +179,7 @@ const chatMessageListener = listener.onChannelChatMessage(
         "[INFO]: Chat message was a channel point redemption, not processing in handler."
       );
     } else {
-      console.log("Using listener: " + message);
+      chatMessageHandler(message, openai, overlayWebSocket);
     }
   }
 );
@@ -187,14 +190,22 @@ listener.start();
 // Creating basic bot
 const bot = new Bot({ authProvider, channels: ["jbrofee"] });
 
-// Chat message handler
-bot.onMessage(async (message) => {
-  console.log("message being processed");
-  await chatMessageHandler(message, openai, overlayWebSocket);
-});
-
+// Records users who join the chat
 bot.onJoin(async (message) => {
-  console.log(`${message.userName} joined the chat`);
+  console.info(`[INFO]: ${message.userName} joined the chat.`);
+  const userInfo = await message.getUser();
+  clickhouseClient?.insert({
+    table: "joins",
+    values: [
+      {
+        user_display_name: userInfo.displayName,
+        timestamp: Date.now(),
+        user_id: userInfo.id,
+        user_name: userInfo.name,
+      },
+    ],
+    format: "JSONEachRow",
+  });
 });
 
 // Basic ping check for debugging
@@ -205,7 +216,6 @@ server.get("/ping", async (request) => {
 
 server.get("/websocket", { websocket: true }, (socket, req) => {
   overlayWebSocket = socket;
-  obsInitialize(obs, overlayWebSocket);
   console.log("Client connected " + req.id + req.id);
   socket.onmessage = (message) => {
     console.log(message.data);
