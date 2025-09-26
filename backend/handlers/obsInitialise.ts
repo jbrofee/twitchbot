@@ -25,6 +25,7 @@ interface TransformInfo {
 
 var sceneChangeCount = 0;
 
+// TODO check out other available events for ideas
 export default async function obsInitialize(
   obs: OBSWebSocket,
   getOverlayWebSocket: () => WebSocket | null,

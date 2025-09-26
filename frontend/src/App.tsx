@@ -112,6 +112,7 @@ export const WebSocketProvider: React.FC<{ children?: React.ReactNode }> = ({
           }
         };
 
+        // TODO fix this to actually handle chat and follow events
         ws.onmessage = (message) => {
           try {
             const parsedData = JSON.parse(message.data);

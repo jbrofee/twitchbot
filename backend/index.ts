@@ -19,11 +19,11 @@ import {
 } from "./handlers/clickhouse.ts";
 import chatMessageHandler from "./handlers/chat/chatMessage.ts";
 import redemptionHandler from "./handlers/redemption/redemptionHandler.ts";
+import obsInitialize from "./handlers/obsInitialise.ts";
 
 // External systems
 import OpenAI from "openai";
 import { OBSWebSocket } from "obs-websocket-js";
-import obsInitialize from "./handlers/obsInitialise.ts";
 
 // Type declaration for fastify config
 declare module "fastify" {
@@ -98,7 +98,6 @@ const openai = new OpenAI({
 var overlayWebSocket: any = null;
 
 // Connecting to OBS and adding listeners in handler
-// TODO maybe track scene changes? idk
 const obs = new OBSWebSocket();
 try {
   await obs.connect("ws://127.0.0.1:4455", "VuxJGKKyietIM7Vf");
@@ -155,6 +154,7 @@ await authProvider.addUserForToken(tokenData, [
 const apiClient = new ApiClient({ authProvider });
 const listener = new EventSubWsListener({ apiClient });
 
+// TODO put these in handler file (maybe)
 // Listener for channel point redemptions
 const channelPointsListener = listener.onChannelRedemptionAdd(
   twitchUserId,

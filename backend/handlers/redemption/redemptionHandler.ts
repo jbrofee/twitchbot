@@ -50,6 +50,7 @@ export default async function redemptionHandler(
         });
       }
       break;
+    // TODO finish implementing redemptions
 
     case "Mute the streamer":
       try {

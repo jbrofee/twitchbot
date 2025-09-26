@@ -46,6 +46,7 @@ export default async function chatMessageHandler(
     } finally {
       // Always attempt to send the follow event for debugging
       try {
+        // TODO fix this to do TTS instead of emulating follow events
         const payload: ttsMessage = {
           mode: "follow",
           url: message.chatterDisplayName, // repurposed to carry username for the overlay
