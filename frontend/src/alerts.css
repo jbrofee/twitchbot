@@ -1,0 +1,69 @@
+.alert {
+    top: 8%;
+    transform: translateX(-50%);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+.animate-slide-in-bottom {
+    animation: slide-in-bottom 300ms ease-out forwards;
+}
+
+.animate-slide-out-bottom {
+    animation: slide-out-bottom 350ms ease-in forwards;
+}
+
+@keyframes slide-in-bottom {
+    from {
+        transform: translate(-50%, 40px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes slide-out-bottom {
+    from {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translate(-50%, 40px);
+        opacity: 0;
+    }
+}
+
+/* New: Y-only fade/slide animations for camera-aligned alerts */
+.animate-alert-in {
+    animation: alert-in 250ms ease-out forwards;
+}
+
+.animate-alert-out {
+    animation: alert-out 250ms ease-in forwards;
+}
+
+@keyframes alert-in {
+    from {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes alert-out {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+}

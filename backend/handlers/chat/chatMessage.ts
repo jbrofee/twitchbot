@@ -29,6 +29,8 @@ export default async function chatMessageHandler(
   if (message.isAction) return;
   const USER_NAME = message.userDisplayName.toLowerCase();
   if (VIP_LIST[USER_NAME] != null) {
+    console.log("Pinged");
+    // Try to generate TTS, but don't block sending the follow event if it fails
     try {
       const fileName = USER_NAME + Date.now() + ".mp3";
       const speechFile = path.resolve("./overlay/snippets/" + fileName);
@@ -39,15 +41,32 @@ export default async function chatMessageHandler(
       });
       const buffer = Buffer.from(await inputStream.arrayBuffer());
       await fs.promises.writeFile(speechFile, buffer);
-      const payload: ttsMessage = {
-        // mode: "tts",
-        mode: "follow",
-        // url: `http://localhost:3001/overlay/snippets/${fileName}`,
-        url: message.userName,
-      };
-      overlayWebSocket.send(JSON.stringify(payload));
     } catch (error) {
       console.log("Couldn't generate TTS of chat message. " + error);
+    } finally {
+      // Always attempt to send the follow event for debugging
+      try {
+        const payload: ttsMessage = {
+          mode: "follow",
+          url: message.userName, // repurposed to carry username for the overlay
+        };
+        // Guard against missing/closed socket
+        if (
+          (overlayWebSocket as any) &&
+          (overlayWebSocket as any).readyState === 1
+        ) {
+          overlayWebSocket.send(JSON.stringify(payload));
+        } else {
+          console.warn(
+            "[WARN]: Overlay WebSocket not connected; could not send follow event."
+          );
+        }
+      } catch (sendErr) {
+        console.error(
+          "[ERROR]: Failed to send follow event to overlay:",
+          sendErr
+        );
+      }
     }
   }
 

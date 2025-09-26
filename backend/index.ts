@@ -189,6 +189,7 @@ const bot = new Bot({ authProvider, channels: ["jbrofee"] });
 
 // Chat message handler
 bot.onMessage(async (message) => {
+  console.log("message being processed");
   await chatMessageHandler(message, openai, overlayWebSocket);
 });
 

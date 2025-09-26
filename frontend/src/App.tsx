@@ -1,4 +1,5 @@
 import React, { createContext, useEffect, useRef, useState } from "react";
+import "./alerts.css";
 
 interface AudioInstance {
   id: string;
@@ -66,6 +67,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
   const wsConnectionRef = useRef<WebSocket | null>(null);
   const audioCounterRef = useRef(0);
   const followCounterRef = useRef(0);
+  // Keep latest audio instances for cleanup without re-running the effect
+  const audioInstancesRef = useRef<AudioInstance[]>([]);
+
+  useEffect(() => {
+    audioInstancesRef.current = audioInstances;
+  }, [audioInstances]);
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:3001/websocket");
@@ -81,7 +88,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
           playAudioFromUrl(parsedData.url);
           break;
         case "follow":
-          playFollowAlert(parsedData.username);
+          console.log("Follow event");
+          playFollowAlert(parsedData.url);
           break;
         case "camera":
           console.log("Updating camera box");
@@ -101,7 +109,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close();
-        audioInstances.forEach((instance) => {
+        // Use ref to avoid adding state to deps
+        audioInstancesRef.current.forEach((instance) => {
           instance.audio.pause();
           instance.audio.src = "";
         });
@@ -212,64 +221,74 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({
       {children}
 
       {/* Camera box */}
-      <div
-        style={{
-          position: "fixed",
-          left: `${cameraDimensions.positionX}px`,
-          top: `${cameraDimensions.positionY}px`,
-          width: `${
-            (cameraDimensions.sourceWidth -
-              cameraDimensions.cropLeft -
-              cameraDimensions.cropRight) *
-            (cameraDimensions.scaleX !== 0 ? cameraDimensions.scaleX : 1)
-          }px`,
-          height: `${
-            (cameraDimensions.sourceHeight -
-              cameraDimensions.cropTop -
-              cameraDimensions.cropBottom) *
-            (cameraDimensions.scaleY !== 0 ? cameraDimensions.scaleY : 1)
-          }px`,
-          transform: `rotate(${cameraDimensions.rotation}deg)`,
-          border: "5px solid #FFD700",
-          backgroundColor: "transparent",
-        }}
-      />
+      <div>
+        <div
+          style={{
+            position: "fixed",
+            left: `${cameraDimensions.positionX}px`,
+            top: `${cameraDimensions.positionY}px`,
+            width: `${
+              (cameraDimensions.sourceWidth -
+                cameraDimensions.cropLeft -
+                cameraDimensions.cropRight) *
+                (cameraDimensions.scaleX !== 0 ? cameraDimensions.scaleX : 1) -
+              5
+            }px`,
+            height: `${
+              (cameraDimensions.sourceHeight -
+                cameraDimensions.cropTop -
+                cameraDimensions.cropBottom) *
+                (cameraDimensions.scaleY !== 0 ? cameraDimensions.scaleY : 1) -
+              5
+            }px`,
+            transform: `rotate(${cameraDimensions.rotation}deg)`,
+            border: "5px solid #FFD700",
+            backgroundColor: "transparent",
+            zIndex: 5,
+          }}
+        />
 
-      {/* Follow Alert Container */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          pointerEvents: "none",
-          zIndex: 9999,
-        }}
-      >
-        {followAlerts.map((alert) => (
-          <div
-            key={alert.id}
-            style={{
-              position: "absolute",
-              top: "20px",
-              right: alert.isVisible ? "20px" : "-400px",
-              backgroundColor: "#6441a5",
-              color: "white",
-              padding: "20px 30px",
-              borderRadius: "10px",
-              fontSize: "24px",
-              fontWeight: "bold",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
-              transition: "right 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
-              minWidth: "250px",
-              textAlign: "center",
-              border: "3px solid #9147ff",
-            }}
-          >
-            🎉 Thanks for following, {alert.username}! 🎉
-          </div>
-        ))}
+        <div>
+          {followAlerts.map((alert) => {
+            // Compute camera-rendered width taking into account cropping and scale
+            const camWidth =
+              (cameraDimensions.sourceWidth -
+                cameraDimensions.cropLeft -
+                cameraDimensions.cropRight) *
+                (cameraDimensions.scaleX !== 0 ? cameraDimensions.scaleX : 1) -
+              5;
+            const camHeight =
+              (cameraDimensions.sourceHeight -
+                cameraDimensions.cropTop -
+                cameraDimensions.cropBottom) *
+                (cameraDimensions.scaleY !== 0 ? cameraDimensions.scaleY : 1) -
+              5;
+
+            return (
+              <div
+                key={alert.id}
+                className={`fixed z-50 select-none drop-shadow ${
+                  alert.isVisible ? "animate-alert-in" : "animate-alert-out"
+                }`}
+                style={{
+                  // Place directly under the camera box
+                  left: `${cameraDimensions.positionX}px`,
+                  top: `${cameraDimensions.positionY + camHeight + 8}px`,
+                  width: `${Math.max(camWidth, 120)}px`,
+                  pointerEvents: "none",
+                }}
+              >
+                <div className="mx-auto w-full max-w-full rounded-md border border-yellow-300/60 bg-yellow-200/90 px-3 py-2 text-center text-sm font-semibold text-neutral-900 shadow">
+                  Thanks for the follow,
+                  <span className="mx-1 underline decoration-yellow-700/50 underline-offset-2">
+                    {alert.username}
+                  </span>
+                  !
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </WebSocketContext.Provider>
   );
