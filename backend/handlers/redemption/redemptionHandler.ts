@@ -1,5 +1,6 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import type { ApiClient } from "@twurple/api";
+import type { Bot } from "@twurple/easy-bot";
 import type { EventSubChannelRedemptionAddEvent } from "@twurple/eventsub-base";
 import type OBSWebSocket from "obs-websocket-js";
 
@@ -8,7 +9,8 @@ export default async function redemptionHandler(
   apiClient: ApiClient,
   twitchUserId: string,
   obs: OBSWebSocket,
-  clickhouseClient: ClickHouseClient
+  clickhouseClient: ClickHouseClient,
+  bot: Bot
 ) {
   // Add redemption to Clickhouse
   try {
@@ -43,23 +45,62 @@ export default async function redemptionHandler(
           30
         );
       } catch (error: any) {
-        console.error("Error starting ad.", {
-          status: error.status,
-          message: error.message,
-          body: error.body,
-        });
+        console.error("[ERROR]: Error starting ad.", error);
+        throw error;
       }
       break;
-    // TODO finish implementing redemptions
 
     case "Mute the streamer":
       try {
-        obs.call("SetInputMute", {
+        await obs.call("SetInputMute", {
           inputName: "Mic/Aux",
           inputMuted: true,
         });
+        const activeScene = await obs.call("GetCurrentProgramScene");
+        const currentScene = await obs.call("GetSceneItemList", {
+          sceneName: activeScene.currentProgramSceneName,
+        });
+
+        // Enable the "Mute logo" scene item
+        const sceneName = activeScene.currentProgramSceneName;
+        // Prefer dynamic lookup to avoid hardcoding IDs that can change between sessions
+        const muteLogoItem = (currentScene as any).sceneItems?.find(
+          (i: any) => i.sourceName?.toLowerCase() === "mute logo"
+        );
+
+        if (muteLogoItem?.sceneItemId != null) {
+          await obs.call("SetSceneItemEnabled", {
+            sceneName,
+            sceneItemId: muteLogoItem.sceneItemId,
+            sceneItemEnabled: true,
+          });
+        }
       } catch (error) {
         console.error("[ERROR] Couldn't mute mic. " + error);
+        throw error;
+      }
+      break;
+
+    case "Timeout somebody else":
+      try {
+        await bot.timeout("jbrofee", redemption.input, 60, "Redemption");
+        await bot.say(
+          "jbrofee",
+          `${redemption.input} is timed out everyone talk shit about them`
+        );
+      } catch (error) {
+        // console.error("[ERROR]: Could not timeout user. " + error);
+        throw error;
+      }
+      break;
+
+    case "End stream":
+      try {
+        await obs.call("StopStream");
+      } catch (error) {
+        console.error("[ERROR]: Could not end stream. " + error);
+        // Not a redeemable failure but propagate to outer catch if you want to refund
+        throw error;
       }
       break;
 

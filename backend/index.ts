@@ -24,6 +24,8 @@ import obsInitialize from "./handlers/obsInitialise.ts";
 // External systems
 import OpenAI from "openai";
 import { OBSWebSocket } from "obs-websocket-js";
+import { callTwitchApi } from "@twurple/api-call";
+import setupRedemptions from "./handlers/pointsRedemptions.ts";
 
 // Type declaration for fastify config
 declare module "fastify" {
@@ -153,39 +155,7 @@ await authProvider.addUserForToken(tokenData, [
 ]);
 const apiClient = new ApiClient({ authProvider });
 const listener = new EventSubWsListener({ apiClient });
-
-// TODO put these in handler file (maybe)
-// Listener for channel point redemptions
-const channelPointsListener = listener.onChannelRedemptionAdd(
-  twitchUserId,
-  (redemption) => {
-    redemptionHandler(
-      redemption,
-      apiClient,
-      twitchUserId,
-      obs,
-      clickhouseClient!
-    );
-  }
-);
-
-// New chat message handler which can ignore reward input text
-const chatMessageListener = listener.onChannelChatMessage(
-  twitchUserId,
-  twitchUserId,
-  (message) => {
-    if (message.rewardId) {
-      console.info(
-        "[INFO]: Chat message was a channel point redemption, not processing in handler."
-      );
-    } else {
-      chatMessageHandler(message, openai, overlayWebSocket);
-    }
-  }
-);
-
-// Starts the above listeners
-listener.start();
+await setupRedemptions(apiClient, twitchUserId);
 
 // Creating basic bot
 const bot = new Bot({ authProvider, channels: ["jbrofee"] });
@@ -207,6 +177,64 @@ bot.onJoin(async (message) => {
     format: "JSONEachRow",
   });
 });
+
+// TODO put these in handler file (maybe)
+// TODO custom chat and follow/sub alerts
+// Listener for channel point redemptions
+const channelPointsListener = listener.onChannelRedemptionAdd(
+  twitchUserId,
+  async (redemption) => {
+    try {
+      await redemptionHandler(
+        redemption,
+        apiClient,
+        twitchUserId,
+        obs,
+        clickhouseClient!,
+        bot
+      );
+    } catch (error) {
+      console.error(
+        "[ERROR]: Unhandled error in redemption handler, continuing:",
+        error
+      );
+      try {
+        await redemption.updateStatus("CANCELED");
+        bot.say(
+          "jbrofee",
+          `Sorry ${redemption.userDisplayName} your reward was not completed.`
+        );
+      } catch (error) {
+        console.error(
+          "[ERROR]: Failed to update redemption status after handler crash:",
+          error
+        );
+      }
+    }
+  }
+);
+
+// New chat message handler which can ignore reward input text
+const chatMessageListener = listener.onChannelChatMessage(
+  twitchUserId,
+  twitchUserId,
+  async (message) => {
+    try {
+      if (message.rewardId) {
+        console.info(
+          "[INFO]: Chat message was a channel point redemption, not processing in handler."
+        );
+      } else {
+        await chatMessageHandler(message, openai, overlayWebSocket);
+      }
+    } catch (err) {
+      console.error("[ERROR]: Unhandled error in chat message handler:", err);
+    }
+  }
+);
+
+// Starts the above listeners
+listener.start();
 
 // Basic ping check for debugging
 server.get("/ping", async (request) => {

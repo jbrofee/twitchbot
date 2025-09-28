@@ -27,12 +27,14 @@ export default async function chatMessageHandler(
   openai: OpenAI,
   overlayWebSocket: WebSocket
 ) {
+  let fileName;
+  let ttsCount = 0;
   const USER_NAME = message.chatterDisplayName.toLowerCase();
   if (VIP_LIST[USER_NAME] != null) {
     console.log("Pinged");
     // Try to generate TTS, but don't block sending the follow event if it fails
     try {
-      const fileName = USER_NAME + Date.now() + ".mp3";
+      fileName = USER_NAME + Date.now() + ".mp3";
       const speechFile = path.resolve("./overlay/snippets/" + fileName);
       const inputStream = await openai.audio.speech.create({
         model: "kokoro",
@@ -41,37 +43,30 @@ export default async function chatMessageHandler(
       });
       const buffer = Buffer.from(await inputStream.arrayBuffer());
       await fs.promises.writeFile(speechFile, buffer);
+      const payload: ttsMessage = {
+        mode: "tts",
+        url: `http://localhost:3001/overlay/snippets/${fileName}`,
+      };
+      overlayWebSocket.send(JSON.stringify(payload));
+      ttsCount++;
+      clickhouseClient?.insert({
+        table: "tts_reads",
+        values: [
+          {
+            tts_number: ttsCount,
+            tts_time: Date.now(),
+            user_name: message.chatterName,
+            user_display_name: message.chatterDisplayName,
+            message: message.messageText,
+          },
+        ],
+        format: "JSONEachRow",
+      });
     } catch (error) {
       console.log("Couldn't generate TTS of chat message. " + error);
-    } finally {
-      // Always attempt to send the follow event for debugging
-      try {
-        // TODO fix this to do TTS instead of emulating follow events
-        const payload: ttsMessage = {
-          mode: "follow",
-          url: message.chatterDisplayName, // repurposed to carry username for the overlay
-        };
-        // Guard against missing/closed socket
-        if (
-          (overlayWebSocket as any) &&
-          (overlayWebSocket as any).readyState === 1
-        ) {
-          overlayWebSocket.send(JSON.stringify(payload));
-        } else {
-          console.warn(
-            "[WARN]: Overlay WebSocket not connected; could not send follow event."
-          );
-        }
-      } catch (sendErr) {
-        console.error(
-          "[ERROR]: Failed to send follow event to overlay:",
-          sendErr
-        );
-      }
     }
   }
 
-  console.info(message.messageText, message.chatterDisplayName);
   try {
     await clickhouseClient?.insert({
       table: "chat_messages",
