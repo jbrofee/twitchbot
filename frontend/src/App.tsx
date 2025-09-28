@@ -122,7 +122,7 @@ export const WebSocketProvider: React.FC<{ children?: React.ReactNode }> = ({
                 break;
               case "follow":
                 console.log("[WS] Follow event");
-                if (parsedData.url) playFollowAlert(parsedData.url);
+                if (parsedData.url) playFollowAlert(parsedData.username);
                 break;
               case "camera":
                 if (parsedData?.payload) updateCameraBox(parsedData.payload);

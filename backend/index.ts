@@ -233,6 +233,18 @@ const chatMessageListener = listener.onChannelChatMessage(
   }
 );
 
+const followListener = listener.onChannelFollow(
+  twitchUserId,
+  twitchUserId,
+  async (message) => {
+    const payload = {
+      mode: "follow",
+      username: message.userDisplayName,
+    };
+    overlayWebSocket.send(payload);
+  }
+);
+
 // Starts the above listeners
 listener.start();
 
